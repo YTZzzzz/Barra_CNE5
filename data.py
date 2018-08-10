@@ -9,9 +9,9 @@ market_cols1 = ['mkt_cap_ard','risk_beta120','pb','pe_est_ftm','ocfps_ttm', #财
                 'wgsd_pfd_stk','wgsd_debt_lt','wgsd_liabs',
                 'wgsd_assets','wgsd_com_eq_par']
 market_cols2 = ['pct_chg', 'volume','close'] #交易数据
-beginDate = '2012-12-25'
+beginDate = '2012-12-29'
 endDate = '2018-07-01'
-path = r'D:\citics\Barra\data' # 结果储存路径
+path = r'D:\citics\Barra\data\\' # 结果储存路径
 
 #today = datetime.date.today().strftime('%Y-%m-%d')
 #endDate = (datetime.date.today()-datetime.timedelta(days=1)).strftime('%Y-%m-%d')
@@ -50,7 +50,7 @@ def Concat(codes,cols1,cols2):
             df_temp = GetMarketInfo(code,cols1,cols2)
             df_temp = Align(code,df_temp)
             dfs = dfs.append(df_temp)
-            dfs.to_pickle(path+r'\test.pkl')
+            dfs.to_pickle(path+r'test.pkl')
         except:
             print('quota exceeded.')
             break 
@@ -59,8 +59,6 @@ def Concat(codes,cols1,cols2):
 stockSector = w.wset("sectorconstituent","date="+endDate+";sector=全部A股")
 dates,codes,names = stockSector.Data
 #股票数据
-#code = codes[:500]
-#code = ['000001.SZ','000002.SZ']
 dfs = Concat(codes,market_cols1,market_cols2)
-dfs.to_csv(path + r'\stock.csv')
+dfs.to_csv(path + r'stock.csv')
 w.stop()

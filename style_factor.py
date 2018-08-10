@@ -1,12 +1,6 @@
 import pandas as pd
 import numpy as np
-
-
-###暂时放在这，等着会把工具函数放在一个模块里
-def halflife(half_life = 63, length = 252):
-    t = np.arange(length)
-    w = 2 **(t/half_life) / sum(2 ** (t/half_life))
-    return(w)
+from utility import *
 
 class StyleFactor(object):
     
@@ -18,8 +12,8 @@ class StyleFactor(object):
     def RSTR(self, T = 504, L = 21, half_life = 126):
         rstr = np.tile(np.nan, self.length)
         for t in np.arange(T + L, self.length+1):
-            rt = self.data.pct_chg[(t-T-L):(t-L)]
-            rft = self.data.rf[(t-T-L):(t-L)]
+            rt = self.data.pct_chg.iloc[(t-T-L):(t-L)].copy()
+            rft = self.data.rf.iloc[(t-T-L):(t-L)].copy()
             rstr[t-1] = sum((np.log(1+rt)-np.log(1+rft)) * halflife(half_life, length = T))
         return rstr
     
@@ -45,7 +39,17 @@ class StyleFactor(object):
         return cmra
     
     def NLSIZE(self):
-        nlsize = self.data.mkt_cap_ard ** 3
+        tradeday = self.data.datetime.unique()
+        nlsize = np.tile(np.nan, self.length)
+        for each in tradeday:
+            ind = self.data.datetime == each
+            cap = self.data.mkt_cap_ard[ind]
+            if (all(cap.isnull())):
+                print(each)
+            else:
+                lncap = np.log(cap)
+                nlsize[ind] = non_linear_size(lncap, cap)
+                print(each)          
         return nlsize
     
     def BTOP(self):
@@ -55,21 +59,25 @@ class StyleFactor(object):
     def STOM(self, t = 21):
         stom = np.tile(np.nan, self.length)
         for k in np.arange(t, self.length):
-            stom[k] = np.log(sum(self.data.volume[k-t:k]/self.data.share_totala[k-t:k]))
+            turnover = sum(self.data.volume[k-t:k]/self.data.share_totala[k-t:k])
+            if turnover  == 0:
+                stom[k] = np.nan
+            else:
+                stom[k] = np.log(turnover)
         return stom
     
     def STOQ(self, stom, t=21, T=3):
         stoq = np.tile(np.nan, self.length)
         for k in np.arange(T*t, self.length):
             idx = k - np.arange(T) *t
-            stoq[k] = np.log(sum(np.exp(stom.iloc[idx]))/T)
+            stoq[k] = np.log(np.nanmean(np.exp(stom.iloc[idx])))
         return stoq
     
     def STOA(self, stom, t=21, T =12):
         stoa = np.tile(np.nan, self.length)
         for k in np.arange(T*t, self.length):
             idx = k - np.arange(T) *t
-            stoa[k] = np.log(sum(np.exp(stom.iloc[idx]))/T)
+            stoa[k] = np.log(np.nanmean(np.exp(stom.iloc[idx])))
         return stoa
     
     def EPFWD(self):
@@ -119,3 +127,34 @@ class StyleFactor(object):
         blev = (BE+PE+LD) / BE
         return blev
     
+def factors(raw_data):
+    codes = raw_data.code.unique( )
+    dfs = pd.DataFrame()
+    for each in codes:
+        temp = raw_data[raw_data.code == each]
+        factor = StyleFactor(temp)
+        exposure = temp[['datetime', 'code','volume']]
+        exposure['MARCAP'] = temp.mkt_cap_ard.copy()
+        exposure['LNCAP'] = np.log(temp.mkt_cap_ard)
+        exposure['BETA'] = temp.risk_beta120.copy()
+        exposure['RSTR'] = factor.RSTR()
+        exposure['DASTD'] = factor.DASTD()
+        exposure['CMRA'] = factor.CMRA()
+        exposure['HSIGMA'] = temp.risk_residvol252.copy()
+        exposure['BTOP'] = 1/temp.pb
+        exposure['STOM'] = factor.STOM()
+        exposure['STOQ'] = factor.STOQ(exposure.STOM)
+        exposure['STOA'] = factor.STOA(exposure.STOM)
+        exposure['EPFWD'] = factor.EPFWD()
+        exposure['CETOP'] = factor.CETOP()
+        exposure['ETOP'] = factor.ETOP()
+        exposure['EGRLF'] = temp.west_netprofit_CAGR.copy()
+        exposure['EGRSF'] = temp.west_netprofit_YOY.copy()
+        exposure['MLEV'] = factor.MLEV()
+        exposure['DTOA'] = factor.DTOA()
+        exposure['BLEV'] = factor.BLEV()
+        dfs = dfs.append(exposure)
+        print(each)
+    factor2 = StyleFactor(raw_data)
+    dfs['NLSIZE'] = factor2.NLSIZE()
+    return(dfs)
